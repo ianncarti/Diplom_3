@@ -49,3 +49,18 @@ class ConstructorPage(BasePage):
     @allure.step("Ожидание видимости id заказа")
     def wait_for_order_id_in_popup(self):
         self.wait_for_element_is_visible(Locators.ORDER_ID_HEADER)
+
+    @allure.step("Ожидание видимости первой булочки")
+    def wait_for_first_bun_visibility(self):
+        self.wait_for_element_is_visible(Locators.FIRST_BUN_INGREDIENT)
+
+    @allure.step("Ожидание видимости попапа успешного заказа")
+    def wait_for_success_order_popup(self):
+        self.wait_for_element_is_visible(Locators.SUCCESS_ORDER_POPUP)
+
+    def wait_for_close_button_is_visible_and_clickable(self):
+        self.wait_for_element_is_visible(Locators.CLOSE_SUCCESS_ORDER_BUTTON)
+        self.wait_for_element_is_clickable(Locators.CLOSE_SUCCESS_ORDER_BUTTON)
+
+    def click_close_success_order_popup(self):
+        self.click_element(Locators.CLOSE_SUCCESS_ORDER_BUTTON)

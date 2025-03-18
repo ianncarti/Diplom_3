@@ -10,6 +10,10 @@ class PersonalAccountPage(BasePage):
     def open_starting_page(self):
         self.open_url(AppUrls.MAIN_URL)
 
+    @allure.step("Открытие страницы логина")
+    def open_login_page(self):
+        self.open_url(AppUrls.LOGIN_PAGE)
+
     @allure.step("Введение кредов и нажатие кнопки 'Войти'")
     def insert_creds_and_click_login_button(self, email, password):
         self.send_keys(Locators.EMAIL_FIELD, email)

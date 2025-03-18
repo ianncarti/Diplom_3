@@ -2,35 +2,33 @@ import pytest
 import requests
 from helpers import generate_uniq_creds
 from locators import Locators
-from urls import AppUrls, AppUrlsApi
+from pages.constructor_page import ConstructorPage
+from pages.personal_account_page import PersonalAccountPage
+from urls import AppUrlsApi
 from webdriver_factory import WebdriverFactory
-from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
 
 @pytest.fixture
 def browser(request):
-    # driver = WebdriverFactory.get_webdriver('firefox')
-    # yield driver
-    # driver.quit()
     browser_name = request.config.getoption("--browser")
     driver = WebdriverFactory.get_webdriver(browser_name)  # Создаем WebDriver
     yield driver  # Передаем WebDriver в тест
-    driver.quit()  # Закрываем браузер после завершения теста`
+    driver.quit()  # Закрываем браузер после завершения теста
 
 @pytest.fixture
 def create_login_delete_account():
-    valid_creds = generate_uniq_creds() #генерируем уникальные email, password, name
+    valid_creds = generate_uniq_creds() # Генерируем уникальные email, password, name
 
     response_create = requests.post(AppUrlsApi.USER_CREATE_URL, data=valid_creds) #создаём акк
 
-    #токен и тело запроса для логина
+    # Токен и тело запроса для логина
     token = response_create.json()['accessToken']
     auth_data = {
         "email": valid_creds['email'],
         "password": valid_creds['password']
     }
 
-    #логин
+    # Логин
     response_login = requests.post(AppUrlsApi.LOGIN_URL, data=auth_data, headers={'accessToken': token})
 
     yield valid_creds, response_create, response_login, token
@@ -40,78 +38,29 @@ def create_login_delete_account():
 @pytest.fixture
 def login(browser, create_login_delete_account):
     valid_creds, _, __, ___ = create_login_delete_account
-
     email = valid_creds['email']
     password = valid_creds['password']
-    driver = browser
-    driver.get(AppUrls.LOGIN_PAGE)
-    driver.find_element(*Locators.EMAIL_FIELD).send_keys(email)
-    driver.find_element(*Locators.PASSWORD_FIELD).send_keys(password)
-    driver.find_element(*Locators.BUTTON_AUTH).click()
+    personal_account_page = PersonalAccountPage(browser)
+    personal_account_page.open_login_page()
+    personal_account_page.insert_creds_and_click_login_button(email, password)
 
 @pytest.fixture
 def create_order(browser, create_login_delete_account, login):
-    driver = browser
-    # перетаскиваем булку в заказ
-    WebDriverWait(driver, 3).until(expected_conditions.visibility_of_element_located(Locators.FIRST_BUN_INGREDIENT))
-    source_element = driver.find_element(*Locators.FIRST_BUN_INGREDIENT)
-    target_element = driver.find_element(*Locators.CONSTRUCTOR_BASKET_TOP)
-    # JavaScript для перетаскивания
-    driver.execute_script(
-        "function createEvent(typeOfEvent) { " +
-        "var event = document.createEvent('CustomEvent'); " +
-        "event.initCustomEvent(typeOfEvent, true, true, null); " +
-        "event.dataTransfer = { " +
-        "data: {}, " +
-        "setData: function(key, value) { this.data[key] = value; }, " +
-        "getData: function(key) { return this.data[key]; } " +
-        "}; " +
-        "return event; " +
-        "} " +
-        "function dispatchEvent(element, typeOfEvent, event) { " +
-        "if (element.dispatchEvent) { " +
-        "element.dispatchEvent(event); " +
-        "} else if (element.fireEvent) { " +
-        "element.fireEvent('on' + typeOfEvent, event); " +
-        "} " +
-        "} " +
-        "function simulateHTML5DragAndDrop(element, destination) { " +
-        "var dragStartEvent = createEvent('dragstart'); " +
-        "dispatchEvent(element, 'dragstart', dragStartEvent); " +
-        "var dropEvent = createEvent('drop'); " +
-        "dispatchEvent(destination, 'drop', dropEvent); " +
-        "var dragEndEvent = createEvent('dragend'); " +
-        "dispatchEvent(element, 'dragend', dragEndEvent); " +
-        "} " +
-        "simulateHTML5DragAndDrop(arguments[0], arguments[1]);",
-        source_element,
-        target_element
-    )
-
-    # жмём кнопку оформить заказ
-    button_order = driver.find_element(*Locators.CREATE_ORDER_BUTTON)
-    driver.execute_script("arguments[0].click();", button_order)
-
+    constructor_page = ConstructorPage(browser)
+    constructor_page.wait_for_first_bun_visibility()
+    # перетягиваем булочку
+    constructor_page.drag_and_drop(Locators.FIRST_BUN_INGREDIENT, Locators.CONSTRUCTOR_BASKET_TOP)
+    constructor_page.click_create_order_button()
     # ждём появления попапа успешного заказа
-    WebDriverWait(driver, 5).until(
-        expected_conditions.visibility_of_element_located(Locators.SUCCESS_ORDER_POPUP))
-
+    constructor_page.wait_for_success_order_popup()
     initial_id = '9999'
-
     # ждём пока id заказа перестанет равнятся initial_id
-    WebDriverWait(driver, 15).until(lambda driver_wait: driver.find_element(*Locators.ORDER_ID).text != initial_id)
-
+    WebDriverWait(browser, 15).until(lambda driver_wait: browser.find_element(*Locators.ORDER_ID).text != initial_id)
     # запоминаем номер заказа
-    order_id = driver.find_element(*Locators.ORDER_ID).text
-
-    # ждём видимость и кликабельность кнопки закрытия попапа
-    WebDriverWait(driver, 5).until(
-        expected_conditions.visibility_of_element_located(Locators.CLOSE_SUCCESS_ORDER_BUTTON))
-    WebDriverWait(driver, 5).until(expected_conditions.element_to_be_clickable(Locators.CLOSE_SUCCESS_ORDER_BUTTON))
-
-    # закрываем попап кликом на крестик
-    close_popup_button = driver.find_element(*Locators.CLOSE_SUCCESS_ORDER_BUTTON)
-    driver.execute_script("arguments[0].click();", close_popup_button)
+    order_id = browser.find_element(*Locators.ORDER_ID).text
+    # ждем видимость кнопки закрытия и нажимаем на неё
+    constructor_page.wait_for_close_button_is_visible_and_clickable()
+    constructor_page.click_close_success_order_popup()
 
     return order_id
 
